@@ -637,7 +637,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .86rem; }
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
 <script>
 /* ===== Base inicial (dados fictícios para apresentação) ===== */
-const DEMO_VERSION = 7;
+const DEMO_VERSION = 8;
 
 // Referência demonstrativa de preço por m² (fictícia, usada só para simulações)
 const REF_M2 = {
@@ -802,6 +802,25 @@ const CLIENT_PATCH_V6 = {
   c14: { parking: 4, condition: 'novo' },
   c15: { budget: 700000 },
   c17: { minArea: 60 }
+};
+// Ajustes de perfil (v8): preferências mais específicas, para que cada cliente tenha um imóvel ideal e alternativas claramente abaixo
+const CLIENT_PATCH_V8 = {
+  c01: { wants: ['Portaria 24h'] },
+  c02: { region: 'Vila da Serra, Vale do Sereno', budget: 1600000, suites: 2, wants: ['Varanda gourmet', 'Piscina'], condition: 'novo', notes: 'Trabalha em Nova Lima; quer prédio novo com lazer.' },
+  c03: { budget: 3600 },
+  c05: { budget: 4800000, wants: ['Lareira'] },
+  c06: { budget: 4200000, minArea: 400, suites: 4, wants: ['Condomínio fechado', 'Piscina', 'Sauna'] },
+  c07: { budget: 8500, wants: ['Piscina', 'Academia'] },
+  c09: { budget: 1650000, parking: 3, wants: ['Varanda gourmet', 'Playground'] },
+  c11: { budget: 3800000, minArea: 600, suites: 4, wants: ['Condomínio fechado', 'Piscina', 'Área de lazer', 'Academia'] },
+  c12: { region: 'Funcionários, Savassi, Lourdes', budget: 500000, wants: ['Coworking'] },
+  c13: { budget: 1250000, wants: [] },
+  c14: { region: 'Lourdes', budget: 4000000, condition: 'indiferente', wants: ['Piscina', 'Área gourmet'] },
+  c15: { budget: 680000, wants: ['Área de lazer', 'Varanda'] },
+  c16: { region: 'Buritis, Sion, Savassi', budget: 560000, ptype: 'Apartamento', typeHard: false, beds: 2, parking: 1, minArea: 55 },
+  c17: { minArea: 55 },
+  c18: { condition: 'indiferente' },
+  c19: { region: 'Sion, Buritis', budget: 900000, beds: 2, notes: 'Contato vindo do site; ainda falta informar metragem, vagas e tipo.' }
 };
 const DEMO_FICHAS = [
   { id: 'f01', propId: 'p01', style: 'moderno', photos: [0, 1, 2, 3], daysAgo: 2 },
@@ -1225,7 +1244,7 @@ function seedState() {
     v: DEMO_VERSION, updatedAt: now,
     props: DEMO_PROPS.map(p => Object.assign(JSON.parse(JSON.stringify(p)), { createdAt: now - p.daysAgo * DAY })),
     opps: DEMO_OPPS.map(o => Object.assign({}, o, { followed: o.id === 'o01' || o.id === 'o08' })),
-    clients: DEMO_CLIENTS.map((c, i) => normalizeClient(Object.assign(JSON.parse(JSON.stringify(c)), CLIENT_PREFS[c.id] || {}, JSON.parse(JSON.stringify(CLIENT_PATCH_V6[c.id] || {})), { demo: true, createdAt: now - (30 - i * 3) * DAY }))).concat(NEW_CLIENTS.map((c, i) => normalizeClient(Object.assign(JSON.parse(JSON.stringify(c)), JSON.parse(JSON.stringify(CLIENT_PATCH_V6[c.id] || {})), { demo: true, createdAt: now - (10 - i) * DAY })))),
+    clients: DEMO_CLIENTS.map((c, i) => normalizeClient(Object.assign(JSON.parse(JSON.stringify(c)), CLIENT_PREFS[c.id] || {}, JSON.parse(JSON.stringify(CLIENT_PATCH_V6[c.id] || {})), JSON.parse(JSON.stringify(CLIENT_PATCH_V8[c.id] || {})), { demo: true, createdAt: now - (30 - i * 3) * DAY }))).concat(NEW_CLIENTS.map((c, i) => normalizeClient(Object.assign(JSON.parse(JSON.stringify(c)), JSON.parse(JSON.stringify(CLIENT_PATCH_V6[c.id] || {})), JSON.parse(JSON.stringify(CLIENT_PATCH_V8[c.id] || {})), { demo: true, createdAt: now - (10 - i) * DAY })))),
     fichas: DEMO_FICHAS.map(f => Object.assign({}, f, { demo: true, createdAt: now - f.daysAgo * DAY })),
     matchLog: DEMO_MATCH_LOG.map((m, i) => ({ id: 'ml' + i, clientId: m.clientId, t: now - m.hoursAgo * 3600e3, demo: true })),
     materials: DEMO_MATERIALS.map(m => Object.assign({}, m, { createdAt: now - m.daysAgo * DAY })),
@@ -1482,7 +1501,7 @@ const SERIES = () => [cssVar('--primary'), cssVar('--accent'), '#7c8fd6', '#e0a2
 /* ===== Shell, navegação, busca global e notificações ===== */
 const Views = {};
 /* Chaves de funcionalidades: o Match está pronto, só desligado para a apresentação. Para religar: match: true */
-const FLAGS = { match: false };
+const FLAGS = { match: true };
 const UI = {
   explore: { q: '', city: '', hood: '', type: '', purpose: '', pmin: '', pmax: '', amin: '', beds: '', sort: 'recent', onlyFav: false },
   compare: [],
@@ -3223,6 +3242,7 @@ function migrateState(st) {
   const hc = new Set(st.clients.map(c => c.id));
   NEW_CLIENTS.filter(c => !hc.has(c.id)).forEach((c, i) => st.clients.push(normalizeClient(Object.assign(JSON.parse(JSON.stringify(c)), { demo: true, createdAt: now - (10 - i) * DAY }))));
   if ((st.v || 0) < 6) st.clients.forEach(c => { if (c.demo && CLIENT_PATCH_V6[c.id]) Object.assign(c, JSON.parse(JSON.stringify(CLIENT_PATCH_V6[c.id]))); });
+  if ((st.v || 0) < 8) st.clients.forEach(c => { if (c.demo && CLIENT_PATCH_V8[c.id]) Object.assign(c, JSON.parse(JSON.stringify(CLIENT_PATCH_V8[c.id]))); });
   if ((st.v || 0) < 7) {
     if (st.settings) { if (/Demo/.test(st.settings.name || '')) st.settings.name = DEFAULT_BROKER; st.settings.creci = String(st.settings.creci || '').replace(/\s*\(demo\)/i, ''); }
     (st.activity || []).forEach(a => { a.msg = a.msg.replace(' (demo)', '').replace('Nova oportunidade simulada', 'Nova oportunidade').replace('Dados de demonstração removidos', 'Base inicial removida'); });
@@ -3257,7 +3277,8 @@ function defaultWeights() { return Object.fromEntries(CRIT.map(c => [c.k, c.w]))
 const PRIO_CRIT = { preco: 'preco', localizacao: 'local', tamanho: 'area', caracteristicas: 'outras' };
 const RELATED_TYPES = [['Apartamento', 'Cobertura'], ['Apartamento', 'Studio']];
 // Regra de "um a menos": atende = 1; falta 1 = 0,5; faltam 2 = 0,15; mais = 0
-const countScore = (have, need) => have >= need ? 1 : have === need - 1 ? .5 : have === need - 2 ? .15 : 0;
+// Atende exatamente ou 1 a mais = 1; 2+ a mais = 0,85 (paga por espaço que não precisa); falta 1 = 0,4; faltam 2 = 0,1
+const countScore = (have, need) => have >= need ? (have - need >= 2 ? .85 : 1) : have === need - 1 ? .4 : have === need - 2 ? .1 : 0;
 const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
 function critEval(c, p) {
   const money = v => isRent(p) ? fmtBRL(v) + '/mês' : fmtShort(v);
@@ -3266,13 +3287,16 @@ function critEval(c, p) {
   if (c.budget > 0) {
     const pref = (c.budgetMin ? `${money(c.budgetMin)} a ` : 'até ') + money(c.budget) + (c.budgetHard ? ' (máximo rígido)' : '');
     let s, note, elim = false;
+    const ratio = p.price / c.budget;
     if (p.price > c.budget) {
-      const over = p.price / c.budget - 1;
+      const over = ratio - 1;
       if (c.budgetHard) { s = 0; elim = true; note = `${fmtNum(over * 100, 1)}% acima do orçamento máximo rígido`; }
-      else { s = clamp(1 - over / .2, 0, 1); note = `${fmtNum(over * 100, 1)}% acima do máximo (cada 1% acima tira 0,05)`; }
+      else { s = clamp(.75 - over * 5, 0, .75); note = `${fmtNum(over * 100, 1)}% acima do máximo (a partir de 0,75, cada 1% acima tira 0,05)`; }
     } else if (c.budgetMin && p.price < c.budgetMin) {
       const under = 1 - p.price / c.budgetMin; s = clamp(1 - under * 1.5, .4, 1); note = `${fmtNum(under * 100, 1)}% abaixo do mínimo da faixa (pode indicar padrão inferior)`;
-    } else { s = 1; note = 'Dentro da faixa do cliente'; }
+    } else if (ratio > .9) {
+      s = 1 - (ratio - .9) * 2.5; note = `Dentro da faixa, mas usa ${fmtNum(ratio * 100, 0)}% do orçamento (pouca folga para negociar)`;
+    } else { s = 1; note = `Dentro da faixa, com folga (${fmtNum(ratio * 100, 0)}% do máximo)`; }
     if (c.goal === 'investimento' && !isRent(p) && !elim) {
       const d = vsRef(p);
       if (d != null) { const r = d <= -5 ? 1 : d <= 0 ? .8 : d <= 5 ? .5 : .2; s = .7 * s + .3 * r; note += `; investidor: preço ${fmtNum(Math.abs(d), 1)}% ${d > 0 ? 'acima' : 'abaixo'} da referência do bairro (30% do critério)`; }
@@ -3282,10 +3306,11 @@ function critEval(c, p) {
   // 2. Localização
   const hoods = clientHoods(c);
   if (hoods.length) {
-    const inList = hoods.some(h => h.toLowerCase() === p.hood.toLowerCase());
+    const pos = hoods.findIndex(h => h.toLowerCase() === p.hood.toLowerCase()); const inList = pos >= 0;
+    const prefS = [1, .8, .65, .55][Math.min(pos, 3)];
     const clientCities = new Set([c.city].concat(Object.keys(CITIES).filter(ci => CITIES[ci].hoods.some(h => hoods.map(x => x.toLowerCase()).includes(h.toLowerCase()))))).add('');
     const sameRegion = clientCities.has(p.city) || ([...clientCities].some(ci => GREATER_BH.includes(ci)) && GREATER_BH.includes(p.city));
-    out.local = inList ? { s: 1, note: 'Bairro está na lista do cliente' } : sameRegion ? { s: .4, note: 'Bairro fora da lista, mesma região' } : { s: 0, note: 'Fora da área de busca do cliente (outra cidade)', elim: true };
+    out.local = inList ? { s: prefS, note: pos === 0 ? '1º bairro da lista do cliente' : `${pos + 1}º bairro na ordem de preferência do cliente` } : sameRegion ? { s: .3, note: 'Bairro fora da lista, mesma região' } : { s: 0, note: 'Fora da área de busca do cliente (outra cidade)', elim: true };
     Object.assign(out.local, { pref: hoods.join(', '), val: `${p.hood}, ${p.city}` });
   } else if (c.city) {
     const s = p.city === c.city ? 1 : (GREATER_BH.includes(p.city) && GREATER_BH.includes(c.city)) ? .5 : 0;
@@ -3293,17 +3318,17 @@ function critEval(c, p) {
   }
   // 3. Metragem
   if (c.minArea > 0) {
-    const r = p.area / c.minArea; const s = r >= 1 ? 1 : clamp((r - .7) / .3, 0, 1);
-    out.area = { s, pref: `mín. ${fmtNum(c.minArea)} m²`, val: `${fmtNum(p.area)} m²`, note: r >= 1 ? 'Atende à metragem mínima' : `${fmtNum((1 - r) * 100, 0)}% menor que o mínimo (zera com 30% a menos)` };
+    const r = p.area / c.minArea; const s = r >= 1 ? (r > 1.6 ? .85 : 1) : clamp((r - .75) / .25, 0, 1) * .8;
+    out.area = { s, pref: `mín. ${fmtNum(c.minArea)} m²`, val: `${fmtNum(p.area)} m²`, note: r >= 1 ? (r > 1.6 ? `${fmtNum((r - 1) * 100, 0)}% maior que o necessário` : 'Atende à metragem mínima') : `${fmtNum((1 - r) * 100, 0)}% menor que o mínimo (zera com 25% a menos)` };
   }
   // 4. Quartos e suítes
   if (c.beds > 0 || c.suites > 0) {
     const bs = c.beds > 0 ? countScore(p.beds, c.beds) : null, ss = c.suites > 0 ? countScore(p.suites, c.suites) : null;
     const s = bs != null && ss != null ? .7 * bs + .3 * ss : bs != null ? bs : ss;
-    out.quartos = { s, pref: [c.beds ? plural(c.beds, 'quarto', 'quartos') + '+' : '', c.suites ? plural(c.suites, 'suíte', 'suítes') + '+' : ''].filter(Boolean).join(', '), val: `${plural(p.beds, 'quarto', 'quartos')}, ${plural(p.suites, 'suíte', 'suítes')}`, note: s === 1 ? 'Atende' : bs != null && ss != null ? 'Quartos valem 70% e suítes 30% do critério' : 'Faltando unidades' };
+    out.quartos = { s, pref: [c.beds ? plural(c.beds, 'quarto', 'quartos') + '+' : '', c.suites ? plural(c.suites, 'suíte', 'suítes') + '+' : ''].filter(Boolean).join(', '), val: `${plural(p.beds, 'quarto', 'quartos')}, ${plural(p.suites, 'suíte', 'suítes')}`, note: s === 1 ? 'Atende' : (p.beds - (c.beds || 0) >= 2 || p.suites - (c.suites || 0) >= 2) && s >= .85 ? 'Mais cômodos que o necessário' : bs != null && ss != null ? 'Quartos valem 70% e suítes 30% do critério' : 'Faltando unidades' };
   }
   // 5. Vagas
-  if (c.parking > 0) { const s = countScore(p.parking, c.parking); out.vagas = { s, pref: plural(c.parking, 'vaga', 'vagas') + '+', val: plural(p.parking, 'vaga', 'vagas'), note: s === 1 ? 'Atende' : `${c.parking - p.parking} a menos` }; }
+  if (c.parking > 0) { const s = countScore(p.parking, c.parking); out.vagas = { s, pref: plural(c.parking, 'vaga', 'vagas') + '+', val: plural(p.parking, 'vaga', 'vagas'), note: s === 1 ? 'Atende' : p.parking > c.parking ? 'Mais vagas que o necessário' : `${c.parking - p.parking} a menos` }; }
   // 6. Tipo
   if (c.ptype) {
     const eq = c.ptype === p.type, rel = RELATED_TYPES.some(([x, y]) => (x === c.ptype && y === p.type) || (y === c.ptype && x === p.type));
@@ -3604,7 +3629,7 @@ Views.match = {
       </section>`;
     }
     const log = S.matchLog.slice().sort((a, b) => b.t - a.t).filter(x => getClient(x.clientId)).slice(0, 5);
-    const sugg = cs.filter(x => x.stage !== 'concluido').map(x => { const r = rankFor(x)[0]; return r ? { c: x, m: r } : null; }).filter(Boolean).sort((a, b) => b.m.score - a.m.score).slice(0, 8);
+    const sugg = cs.filter(x => x.stage !== 'concluido').map(x => { const rr = rankFor(x); return rr[0] ? { c: x, m: rr[0], m2: rr[1] } : null; }).filter(Boolean).sort((a, b) => (b.m2 ? b.m.score - b.m2.score : -1) - (a.m2 ? a.m.score - a.m2.score : -1)).slice(0, 8);
     return header + `
     <section class="panel" style="margin-bottom:16px"><div class="row" style="align-items:flex-end;gap:12px">
       <label class="field" style="flex:1;min-width:240px"><span>Cliente</span><select class="input" id="mt-client"><option value="">Selecione um cliente cadastrado</option>${cs.map(x => `<option value="${x.id}" ${x.id === u.clientId ? 'selected' : ''}>${esc(x.name)} · ${interestLabel(x.interest)} · ${esc(clientHoods(x).slice(0, 2).join(', ') || x.city || 'região não informada')}</option>`).join('')}</select></label>
@@ -3618,8 +3643,8 @@ Views.match = {
       <div>${results || `<section class="panel"><div class="empty">${ic('match')}<h3>Perfil pronto para o match</h3><p>Clique em “Encontrar Imóveis Compatíveis” para analisar os ${S.props.length} imóveis da base.</p></div></section>`}</div>
     </div>` : ''}
     <div class="split">
-      <section class="panel"><div class="panel-head"><div><h2>Sugestões para seus clientes</h2><div class="sub">Melhor imóvel de cada cliente ativo, pelo mesmo cálculo</div></div></div>
-        <div class="grid g2">${sugg.map(({ c: cl, m }) => `<button class="sugg" data-sugg="${cl.id}"><img src="${photoUrl(m.p)}" alt=""><div style="min-width:0;flex:1;text-align:left"><div class="xs muted">${esc(cl.name)}</div><div class="small" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.p.title)}</div><div class="xs muted">${fmtShort(m.p.price)}${isRent(m.p) ? '/mês' : ''} · ${esc(m.p.hood)}${m.insufficient ? ' · perfil incompleto' : ''}</div></div>${scoreRing(m.score, 48)}</button>`).join('') || '<p class="small muted">Cadastre clientes para ver sugestões.</p>'}</div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Sugestões para seus clientes</h2><div class="sub">Melhor imóvel de cada cliente e a nota da 2ª opção, pelo mesmo cálculo</div></div></div>
+        <div class="grid g2">${sugg.map(({ c: cl, m, m2 }) => `<button class="sugg" data-sugg="${cl.id}"><img src="${photoUrl(m.p)}" alt=""><div style="min-width:0;flex:1;text-align:left"><div class="xs muted">${esc(cl.name)}</div><div class="small" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.p.title)}</div><div class="xs muted">${fmtShort(m.p.price)}${isRent(m.p) ? '/mês' : ''} · ${esc(m.p.hood)}${m.insufficient ? ' · perfil incompleto' : ''}</div><div class="xs" style="color:var(--muted);margin-top:2px">2ª opção: <b>${m2 ? m2.score + '%' : 'nenhuma'}</b></div></div>${scoreRing(m.score, 48)}</button>`).join('') || '<p class="small muted">Cadastre clientes para ver sugestões.</p>'}</div></section>
       <section class="panel"><div class="panel-head"><h2>Matches recentes</h2></div>
         ${log.length ? log.map(l => { const cl = getClient(l.clientId); const top = rankFor(cl).slice(0, 3); return `<div class="list-item clickable" data-log="${cl.id}" style="padding-inline:6px"><span class="avatar" style="width:34px;height:34px;font-size:.78rem">${esc(cl.name[0])}</span><div class="grow"><div class="t small">${esc(cl.name)}</div><div class="xs muted">${timeAgo(l.t)} · top 3: ${top.map(m => m.score + '%').join(', ') || '—'}</div></div><div class="row" style="gap:4px;flex-wrap:nowrap">${top.map(m => `<img class="thumb" style="width:40px;height:30px" src="${photoUrl(m.p)}" alt="" title="${esc(m.p.code)} · ${m.score}%">`).join('')}</div></div>`; }).join('') : '<p class="small muted">Os matches que você fizer aparecem aqui.</p>'}
       </section>
